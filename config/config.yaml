@@ -1,0 +1,3 @@
+samples: "config/samples.tsv"  # location and name of sample list
+
+conda: "../envs/env.yaml"  # leave this unedited
