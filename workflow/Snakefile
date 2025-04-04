@@ -2,3 +2,72 @@
 # Please follow the best practices: 
 # https://snakemake.readthedocs.io/en/stable/snakefiles/best_practices.html,
 # in particular regarding the standardized folder structure mentioned there. 
+
+# -----------------------------
+# mmseqs2 analysis of ONT data
+# -----------------------------
+# This Snakefile is used to run mmseqs2 on the ONT data.
+
+rule all:
+    input:
+        expand("results/mmseqs2/cluster/{sample}_clust", sample=glob_wildcards("resources/mig/{sample}.fastq.gz").sample),
+
+rule fastp-QC:
+    input:
+        "resources/mig/{sample}.fastq.gz",
+    output:
+        seqs="results/fastp/{sample}_fastp.fq",
+        failed="results/fastp/{sample}_fastp-failed.fq",
+        report="reports/fastp/{sample}_fastpreport.html",
+    params:
+        len=2500,
+        qual=20,
+    shell:
+        """fastp \
+        -l {params.len} \
+        -q {params.qual} \
+        -i {input} \
+        -o {output.seqs} \
+        --failed_out {output.failed} \
+        -h {output.report}"""
+
+rule seqkit-stats-fastp:
+    input:
+        "results/fastp/{sample}_fastp.fq",
+        "results/fastp/{sample}_fastp-failed.fq",
+    output:
+        "reports/fastp/{sample}_seqkitstats.tsv",
+    shell:
+        "seqkit stats {input} > {output} -b"
+
+rule mmseqs-easy-cluster: # can this take gz input?
+    input:
+        "results/fastp/{sample}_fastp.fq",
+    output:
+        "results/mmseqs2/cluster/{sample}_clust",
+    params:
+        tmpdir="results/mig/{sample}/mmseqs2/tmp",
+        minseqid=0.9,
+    shell:
+        "mmseqs easy-cluster {input} {output} {params.tmpdir}"
+
+rule create-mmseqs-db:
+    input:
+        "results/fastp/{sample}_fastp.fq",
+    output:
+        "results/mmseqs2/db/{sample}.db",
+    params:
+        tmpdir="results/mig/{sample}/mmseqs2/tmp",
+    shell:
+        "mmseqs createdb {input} {output} {params.tmpdir}"
+
+rule mmseqs-cluster: # can this take gz input?
+    input:
+        "results/mmseqs2/db/{sample}.db",
+    output:
+        "results/mmseqs2/cluster/{sample}_clust",
+    params:
+        tmpdir="results/mmseqs2/tmp",
+    shell:
+        "mmseqs easy-cluster {input} {output} {params.tmpdir}"
+
